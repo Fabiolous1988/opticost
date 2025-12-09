@@ -1,5 +1,5 @@
 
-import { DynamicData, GlobalSettings, PergolaModel, ProvinceData } from '../types';
+import { DynamicData, GlobalSettings, PergolaModel, ProvinceData, ZavorraModel } from '../types';
 import { DEFAULT_SETTINGS, DEFAULT_MODELS } from '../constants';
 
 const CSV_URL_TRANSPORT = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTL-4djiL6_Z8-PmHgKeJ2QmEHtZdChrJXEBIni0FyQ8Nu3dkm_6j5haSd6SElMNw/pub?output=csv';
@@ -29,25 +29,11 @@ const parseLine = (line: string): string[] => {
 // Helper to sanitize keys for matching
 const sanitizeKey = (key: string) => key.toLowerCase().replace(/[^a-z0-9_]/g, '_');
 
-// Helper to detect if a row is a model definition based on columns
-// Assuming Model Row has at least: Name, Weight/Hours (numeric)
-const isModelRow = (row: string[]): boolean => {
-  if (row.length < 3) return false;
-  const col1 = parseFloat(row[1]?.replace(',', '.') || '0');
-  const col2 = parseFloat(row[2]?.replace(',', '.') || '0');
-  // If cols 1 and 2 are numbers, it's likely a model row (Hours/Weight)
-  // Also check column 0 is not a known variable key style (snake_case)
-  // Variable keys usually have underscores, Model names usually don't or are Title Case
-  const name = row[0];
-  if (name.includes('costo_') || name.includes('diaria_') || name.includes('soglia_')) return false;
-  
-  return !isNaN(col1) && !isNaN(col2);
-};
-
 export const fetchDynamicData = async (): Promise<DynamicData> => {
   const data: DynamicData = {
     provinces: {},
     models: [],
+    zavorraModels: [],
     settingsOverrides: {},
     lastUpdated: new Date()
   };
@@ -63,8 +49,12 @@ export const fetchDynamicData = async (): Promise<DynamicData> => {
       if (index === 0) return; 
       if (row.length < 3) return;
 
-      const code = row[0].toUpperCase().substring(0, 2); // Ensure 2 char code
-      if (code.length === 2 && /^[A-Z]+$/.test(code)) {
+      // Ensure we get 2 chars for code, clean up spaces
+      const rawCode = row[0].trim().toUpperCase();
+      const code = rawCode.length > 0 ? rawCode.substring(0, 2) : '';
+      
+      // Basic validation that it looks like a province code
+      if (code.length === 2) {
         const truckCost = parseFloat(row[2]?.replace('€', '').replace('.', '').replace(',', '.') || '0');
         const craneCost = parseFloat(row[3]?.replace('€', '').replace('.', '').replace(',', '.') || '0');
         
@@ -85,6 +75,7 @@ export const fetchDynamicData = async (): Promise<DynamicData> => {
     const variablesRows = variablesText.split('\n').map(parseLine);
 
     const parsedModels: PergolaModel[] = [];
+    const parsedZavorre: ZavorraModel[] = [];
 
     variablesRows.forEach(row => {
       if (row.length < 2) return;
@@ -128,21 +119,25 @@ export const fetchDynamicData = async (): Promise<DynamicData> => {
         else if (key.includes('sconto') && (key.includes('50') || key.includes('ottimizzazione'))) {
           data.settingsOverrides.sconto_quantita_percentuale = val;
         }
+        else if (key.includes('ore') && key.includes('standard')) {
+            data.settingsOverrides.ore_lavoro_giornaliere_standard = val;
+        }
+      }
+
+      // --- Zavorre Logic ---
+      // Looking for keys like "zavorra_..." or names containing "zavorra" with a weight value
+      if (key.includes('zavorra') && !isNaN(val)) {
+        parsedZavorre.push({
+            id: sanitizeKey(originalKey),
+            name: originalKey,
+            weight_kg: val
+        });
       }
 
       // --- Models Logic ---
-      // We assume a model row has multiple numeric columns.
-      // Expected Structure guessed from typical sheets:
-      // Name (0), Hours Structure (1), Hours PV (2), Hours LED (3), Weight (4), Lifting (5)
-      // OR
-      // Name (0), Weight (1), Hours Structure (2)...
-      
-      // Heuristic: If row has > 3 cols and is not a setting
-      if (row.length >= 4 && !key.includes('costo') && !key.includes('diaria') && !key.includes('soglia')) {
-         // Attempt to map columns. 
-         // Let's look for known model pattern: Name | Weight | Hours
+      // Heuristic: If row has > 3 cols and is not a setting and not a zavorra
+      if (row.length >= 4 && !key.includes('costo') && !key.includes('diaria') && !key.includes('soglia') && !key.includes('zavorra') && !key.includes('indennita')) {
          
-         // Parsing helper
          const p = (idx: number) => parseFloat(row[idx]?.replace(',', '.') || '0');
          
          const v1 = p(1);
@@ -151,7 +146,6 @@ export const fetchDynamicData = async (): Promise<DynamicData> => {
          const v4 = p(4);
          
          if (!isNaN(v1) && !isNaN(v2)) {
-            // Check if weight is likely column 1 or column 4. Weights are usually > 100. Hours < 20.
             let weight = 0;
             let hoursStruct = 0;
             let hoursPv = 0;
@@ -175,11 +169,10 @@ export const fetchDynamicData = async (): Promise<DynamicData> => {
                requiresLifting = (weight > 200); // Heuristic if not specified
             }
 
-            // Only add if it looks valid
             if (hoursStruct > 0 && weight > 0) {
               parsedModels.push({
                 id: sanitizeKey(originalKey),
-                name: originalKey, // Use original casing for display
+                name: originalKey,
                 hours_structure_per_spot: hoursStruct,
                 hours_pv_per_spot: hoursPv,
                 hours_led_per_spot: hoursLed,
@@ -191,13 +184,11 @@ export const fetchDynamicData = async (): Promise<DynamicData> => {
       }
     });
     
-    // Assign parsed models
-    if (parsedModels.length > 0) {
-      data.models = parsedModels;
-    } else {
-      // If parsing fails, use defaults but attached to data
-      data.models = DEFAULT_MODELS;
-    }
+    if (parsedModels.length > 0) data.models = parsedModels;
+    else data.models = DEFAULT_MODELS;
+
+    if (parsedZavorre.length > 0) data.zavorraModels = parsedZavorre;
+    // No default Zavorre models here, App will fallback if needed
 
   } catch (error) {
     console.error("Error fetching CSV data", error);

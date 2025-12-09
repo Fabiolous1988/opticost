@@ -1,11 +1,11 @@
 
-import { GlobalSettings, PergolaModel, ZavorraType } from './types';
+import { GlobalSettings, PergolaModel } from './types';
 
 export const DEFAULT_SETTINGS: GlobalSettings = {
   soglia_distanza_trasferta_km: 150,
   diaria_squadra_interna: 50,
   soglia_minima_ore_lavoro_utili: 2,
-  ore_lavoro_giornaliere_standard: 9,
+  ore_lavoro_giornaliere_standard: 8, // Updated to 8 hours
   km_per_litro_furgone: 11,
   costo_medio_gasolio_euro_litro: 1.85,
   costo_usura_mezzo_euro_km: 0.037,
@@ -47,25 +47,15 @@ export const DEFAULT_MODELS: PergolaModel[] = [
   }
 ];
 
-export const ZAVORRA_WEIGHTS = {
-  [ZavorraType.NONE]: 0,
-  // 16 Quintali = 1600 kg. Assuming this is per spot/column or per significant unit.
-  // Given the context of "16 quintali o 24 quintali", we use these exact values.
-  [ZavorraType.CEMENTO_16]: 1600, 
-  [ZavorraType.TWIN_DRIVE_24]: 2400,
-};
+export const HOURS_PER_SPOT_TELO = 1.0; // Default estimate if not in model
 
-// Mock provinces with approximate distances from Verona (VR) and transport costs
-// Used as fallback for Distance if not specified manually
 export const PROVINCES: Record<string, { km: number, truckCost: number, craneCost: number }> = {
   'VR': { km: 15, truckCost: 350, craneCost: 500 },
   'MI': { km: 160, truckCost: 600, craneCost: 850 },
   'RM': { km: 520, truckCost: 1200, craneCost: 1600 },
-  'BO': { km: 140, truckCost: 450, craneCost: 700 },
-  'TO': { km: 300, truckCost: 800, craneCost: 1100 },
-  'NA': { km: 700, truckCost: 1500, craneCost: 2000 },
-  'BA': { km: 800, truckCost: 1600, craneCost: 2200 },
-  'FI': { km: 230, truckCost: 650, craneCost: 900 },
 };
 
-export const STARTING_ADDRESS = "Via Disciplina 11, 37036 San Martino Bonalbergo, Verona";
+export const STARTING_ADDRESS = "Via Disciplina 11, 37036 San Martino Buon Albergo, Verona";
+
+export const DEFAULT_HOTEL_PRICE = 90;
+export const DEFAULT_PUBLIC_TRANSPORT_PRICE = 150;

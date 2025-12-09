@@ -1,4 +1,3 @@
-
 import { GoogleGenAI } from "@google/genai";
 import { CalculationResult, InputState, ServiceType, TransportType } from "../types";
 
@@ -34,7 +33,7 @@ export const generateCrmDescription = async (
     - Modello: ${input.modelId}
     - Posti Auto: ${input.spots}
     - Accessori: ${input.hasPv ? 'Fotovoltaico, ' : ''}${input.hasLed ? 'LED, ' : ''}${input.hasCoibentati ? 'Copertura Coibentata' : ''}
-    - Zavorre: ${input.zavorraType}
+    - Zavorre: ${input.hasZavorre ? input.zavorraModelId : 'Nessuna'}
     - Giorni stimati in cantiere: ${results.totalDays}
     - Squadra: ${input.techsInternal + input.techsExternal} tecnici
     - Mezzi Trasporto: ${results.details.numberOfVehicles}x ${results.transportMode === TransportType.VAN ? 'Nostro Mezzo' : results.transportMode === TransportType.TRUCK ? 'Bilico Standard' : 'Motrice con Gru'}

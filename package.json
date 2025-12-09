@@ -11,7 +11,9 @@
   "dependencies": {
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
-    "@google/genai": "^1.31.0"
+    "@google/genai": "^1.31.0",
+    "jspdf": "latest",
+    "jspdf-autotable": "latest"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
